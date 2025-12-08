@@ -93,19 +93,6 @@ func (h *TopicManager) RegisterToTicker(name string, t *topic) {
 	}
 }
 
-// registerToTickerLocked 在已持有锁的情况下注册到 ticker
-// Deprecated: 使用 RegisterToTicker 替代，必须在锁外调用
-func (h *TopicManager) registerToTickerLocked(name string, t *topic) {
-	if t.NeedsTick() {
-		wrapper := h.GetOrCreateTopicWrapper(name, t)
-		// 注意：这里调用 h.ticker.Register 会导致死锁，因为 Register 会调用 NextTickTime，
-		// 而 NextTickTime 会尝试获取 RLock，但当前已经持有 Lock。
-		// 所以这个方法不能直接调用 ticker.Register。
-		// 临时修复：什么都不做，让调用者在锁外调用 RegisterToTicker
-		_ = wrapper
-	}
-}
-
 // UnregisterFromTicker 从 ticker 注销
 func (h *TopicManager) UnregisterFromTicker(name string) {
 	h.ticker.Unregister(name)

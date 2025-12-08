@@ -34,14 +34,15 @@ func main() {
 	}
 	log.Printf("[系统] 已安排超时检查任务 (3秒后)")
 
-	// 3. 模拟支付 (这里我们故意不支付，或者注释掉下面这行来模拟未支付)
-	// time.Sleep(1 * time.Second)
+	//		selectOp := time.Now().UnixNano() % 2
+	if selectOp == 0 {		go func() {
+			time.Sleep(1 * time.Second)
+			payOrder(orderID, orders, &mu		}()	}.Second)
 	// payOrder(orderID, orders, &mu)
 
-	// 4. 启动 Worker 处理超时检查
-	go func() {
-		for {
-			job, err := q.Reserve([]string{"order_check"}, 4*time.Second)
+	// 4			job, err := q.Reserve([]string{"order_check"}, 4*time.Second)
+
+e([]string{"order_check"}, 10*time.Second)
 			if err != nil {
 				return // 超时或关闭
 			}
