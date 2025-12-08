@@ -56,7 +56,9 @@ func newReserveManager(ctx context.Context) *reserveManager {
 
 // start 启动后台清理任务
 func (rm *reserveManager) start() {
-	rm.wg.Go(func() {
+	rm.wg.Add(1)
+	go func() {
+		defer rm.wg.Done()
 		ticker := time.NewTicker(1 * time.Second) // 每秒清理一次
 		defer ticker.Stop()
 
@@ -68,7 +70,7 @@ func (rm *reserveManager) start() {
 				rm.cleanupExpiredWaiters()
 			}
 		}
-	})
+	}()
 }
 
 // stop 停止 reserveManager

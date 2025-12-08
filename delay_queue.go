@@ -172,7 +172,9 @@ func (q *DelayQueue) StartWithOptions(opts StartOptions) error {
 	recoveryRunner := newRecoveryRunner(q.ctx, q.storage)
 
 	// 2. 后台异步恢复任务
-	q.wg.Go(func() {
+	q.wg.Add(1)
+	go func() {
+		defer q.wg.Done()
 		defer q.recoveryOnce.Do(func() { close(q.recoveryDone) })
 
 		q.logger.Info("starting async delayJob recovery")
@@ -199,7 +201,7 @@ func (q *DelayQueue) StartWithOptions(opts StartOptions) error {
 				}
 			}
 		}
-	})
+	}()
 
 	// 启动 Ticker
 	q.ticker.Start()

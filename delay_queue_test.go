@@ -300,13 +300,15 @@ func TestReserve_NoThunderingHerd(t *testing.T) {
 		var reserveCount atomic.Int32
 
 		for range workerCount {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				delayJob, err := q.Reserve([]string{"test"}, 2*time.Second)
 				if err == nil && delayJob != nil {
 					reserveCount.Add(1)
 					_ = q.Delete(delayJob.Meta.ID)
 				}
-			})
+			}()
 		}
 
 		// 等待 workers 进入等待状态
@@ -592,7 +594,9 @@ func TestReserve_FIFO(t *testing.T) {
 		var wg sync.WaitGroup
 		for i := range 5 {
 			workerID := i
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				time.Sleep(time.Duration(workerID) * 10 * time.Millisecond) // 确保按顺序启动
 				delayJob, err := q.Reserve([]string{"test"}, 3*time.Second)
 				if err == nil && delayJob != nil {
@@ -601,7 +605,7 @@ func TestReserve_FIFO(t *testing.T) {
 					mu.Unlock()
 					_ = q.Delete(delayJob.Meta.ID)
 				}
-			})
+			}()
 		}
 
 		// 等待所有 workers 进入等待状态
@@ -774,9 +778,11 @@ func TestReserve_WaiterCleanup(t *testing.T) {
 		// 启动多个会超时的 reserve
 		var wg sync.WaitGroup
 		for range 10 {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				_, _ = q.Reserve([]string{"test"}, 100*time.Millisecond)
-			})
+			}()
 		}
 
 		wg.Wait()
@@ -1000,7 +1006,9 @@ func TestStress_BurstLoad(t *testing.T) {
 		startTime = time.Now()
 		var consumed atomic.Int32
 		for range 100 {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				for {
 					delayJob, err := q.Reserve([]string{"burst"}, 10*time.Millisecond)
 					if err == ErrTimeout {
@@ -1011,7 +1019,7 @@ func TestStress_BurstLoad(t *testing.T) {
 						consumed.Add(1)
 					}
 				}
-			})
+			}()
 		}
 		wg.Wait()
 		readTime := time.Since(startTime)

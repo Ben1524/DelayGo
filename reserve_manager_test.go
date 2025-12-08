@@ -144,12 +144,14 @@ func TestReserveWaitAndNotify(t *testing.T) {
 		var wg sync.WaitGroup
 		var receivedDelayJob *DelayJob
 
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			delayJob, err := q.Reserve([]string{"test"}, 3*time.Second)
 			if err == nil {
 				receivedDelayJob = delayJob
 			}
-		})
+		}()
 
 		// 等待 worker 进入等待状态
 		time.Sleep(200 * time.Millisecond)
@@ -195,7 +197,9 @@ func TestReserveFIFO(t *testing.T) {
 		var wg sync.WaitGroup
 		for i := range 5 {
 			workerID := i
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				time.Sleep(time.Duration(workerID) * 10 * time.Millisecond) // 确保按顺序启动
 				delayJob, err := q.Reserve([]string{"test"}, 3*time.Second)
 				if err == nil && delayJob != nil {
@@ -204,7 +208,7 @@ func TestReserveFIFO(t *testing.T) {
 					mu.Unlock()
 					_ = delayJob.Delete()
 				}
-			})
+			}()
 		}
 
 		// 等待所有 workers 进入等待状态
@@ -257,13 +261,15 @@ func TestReserveNoThunderingHerd(t *testing.T) {
 		var reserveCount atomic.Int32
 
 		for range workerCount {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				delayJob, err := q.Reserve([]string{"test"}, 2*time.Second)
 				if err == nil && delayJob != nil {
 					reserveCount.Add(1)
 					_ = delayJob.Delete()
 				}
-			})
+			}()
 		}
 
 		// 等待 workers 进入等待状态
@@ -305,13 +311,15 @@ func TestReserveMultipleTopics(t *testing.T) {
 		var wg sync.WaitGroup
 		var receivedTopic string
 
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			delayJob, err := q.Reserve([]string{"email", "sms", "push"}, 2*time.Second)
 			if err == nil && delayJob != nil {
 				receivedTopic = delayJob.Meta.Topic
 				_ = delayJob.Delete()
 			}
-		})
+		}()
 
 		// 等待 worker 进入等待状态
 		time.Sleep(100 * time.Millisecond)
@@ -350,9 +358,11 @@ func TestReserveCleanupExpiredWaiters(t *testing.T) {
 		// 启动多个会超时的 reserve
 		var wg sync.WaitGroup
 		for range 10 {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				_, _ = q.Reserve([]string{"test"}, 100*time.Millisecond)
-			})
+			}()
 		}
 
 		wg.Wait()
@@ -395,7 +405,8 @@ func TestReserveMaxWaiters(t *testing.T) {
 
 		// MaxWaitersPerTopic = 1000
 		for range 1100 {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
 				_, err := q.Reserve([]string{"test"}, 100*time.Millisecond)
 				if err == ErrTooManyWaiters {
 					errCount.Add(1)
@@ -432,9 +443,11 @@ func TestReserveStats(t *testing.T) {
 		// 启动一些 workers 等待
 		var wg sync.WaitGroup
 		for range 5 {
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				_, _ = q.Reserve([]string{"test"}, 2*time.Second)
-			})
+			}()
 		}
 
 		// 等待 workers 进入等待状态
@@ -483,9 +496,11 @@ func TestReserveContextCancellation(t *testing.T) {
 		var wg sync.WaitGroup
 		var reserveErr error
 
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			_, reserveErr = q.Reserve([]string{"test"}, 5*time.Second)
-		})
+		}()
 
 		// 等待进入等待状态
 		time.Sleep(100 * time.Millisecond)
