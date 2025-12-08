@@ -79,11 +79,6 @@ type Storage interface {
 	// filter 为 nil 时统计所有任务
 	CountDelayJobs(ctx context.Context, filter *DelayJobMetaFilter) (int, error)
 
-	// GetMaxDelayJobID 获取最大任务 ID
-	// 用于快速启动时初始化 ID 生成器，避免扫描所有任务
-	// 如果没有任务则返回 0
-	GetMaxDelayJobID(ctx context.Context) (uint64, error)
-
 	// === 资源管理 ===
 
 	// Close 关闭存储

@@ -448,20 +448,7 @@ func (s *MySQLStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMetaF
 	return count, nil
 }
 
-// GetMaxDelayJobID 获取最大任务 ID
-func (s *MySQLStorage) GetMaxDelayJobID(ctx context.Context) (uint64, error) {
-	var maxID sql.NullInt64
-	err := s.db.QueryRowContext(ctx, "SELECT MAX(id) FROM delay_job_meta").Scan(&maxID)
-	if err != nil {
-		return 0, fmt.Errorf("query max id: %w", err)
-	}
 
-	if !maxID.Valid {
-		return 0, nil
-	}
-
-	return uint64(maxID.Int64), nil
-}
 
 // Close 关闭存储
 func (s *MySQLStorage) Close() error {

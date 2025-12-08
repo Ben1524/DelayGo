@@ -27,11 +27,7 @@ type RecoveryResult struct {
 	FailedDelayJobs int                        // 失败的任务数
 }
 
-// GetMaxID 快速获取最大任务 ID（用于快速启动）
-// 只查询 MAX(id)，不加载任务数据，毫秒级返回
-func (rr *recoveryRunner) GetMaxID() (uint64, error) {
-	return rr.storage.GetMaxDelayJobID(rr.ctx)
-}
+
 
 // Recover 从 Storage 恢复所有任务
 func (rr *recoveryRunner) Recover() (*RecoveryResult, error) {

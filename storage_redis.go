@@ -337,18 +337,6 @@ func (s *RedisStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMetaF
 	return 0, nil
 }
 
-// GetMaxDelayJobID 获取最大任务 ID
-func (s *RedisStorage) GetMaxDelayJobID(ctx context.Context) (uint64, error) {
-	// ZREVRANGE key 0 0
-	ids, err := s.client.ZRevRange(ctx, s.keyIDs(), 0, 0).Result()
-	if err != nil {
-		return 0, err
-	}
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	return strconv.ParseUint(ids[0], 10, 64)
-}
 
 // Close 关闭存储
 func (s *RedisStorage) Close() error {

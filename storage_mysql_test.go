@@ -178,3 +178,52 @@ func TestMySQLStorageDeleteDelayJob(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
+
+func TestMySQLStorageCountDelayJobs(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS delay_job_meta").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS delay_job_body").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	storage, err := NewMySQLStorageFromDB(db)
+	if err != nil {
+		t.Fatalf("NewMySQLStorageFromDB error: %v", err)
+	}
+	defer func() { _ = storage.Close() }()
+
+	ctx := context.Background()
+
+	// 1. Count all
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delay_job_meta").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(10))
+
+	count, err := storage.CountDelayJobs(ctx, nil)
+	if err != nil {
+		t.Fatalf("CountDelayJobs all error: %v", err)
+	}
+	if count != 10 {
+		t.Errorf("Count all = %d, want 10", count)
+	}
+
+	// 2. Count with filter (Ready)
+	ready := DelayStateReady
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM delay_job_meta WHERE state = \\?").
+		WithArgs(ready).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
+
+	count, err = storage.CountDelayJobs(ctx, &DelayJobMetaFilter{DelayState: &ready})
+	if err != nil {
+		t.Fatalf("CountDelayJobs Ready error: %v", err)
+	}
+	if count != 5 {
+		t.Errorf("Count Ready = %d, want 5", count)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}

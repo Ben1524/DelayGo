@@ -187,20 +187,6 @@ func (s *MemoryStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMeta
 	return count, nil
 }
 
-// GetMaxDelayJobID 获取最大任务 ID
-func (s *MemoryStorage) GetMaxDelayJobID(ctx context.Context) (uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	maxID := uint64(0)
-	for id := range s.metas {
-		if id > maxID {
-			maxID = id
-		}
-	}
-
-	return maxID, nil
-}
 
 // Close 关闭存储
 func (s *MemoryStorage) Close() error {

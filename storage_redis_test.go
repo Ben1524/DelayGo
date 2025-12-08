@@ -287,3 +287,70 @@ func TestRedisStorageScanDelayJobMeta(t *testing.T) {
 		}
 	}
 }
+
+func TestRedisStorageCountDelayJobs(t *testing.T) {
+	storage, cleanup := setupRedis(t)
+	if storage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create jobs with different states
+	// 3 Ready, 2 Delayed, 1 Buried
+	states := []DelayState{
+		DelayStateReady, DelayStateReady, DelayStateReady,
+		DelayStateDelayed, DelayStateDelayed,
+		DelayStateBuried,
+	}
+
+	for i, state := range states {
+		meta := NewDelayJobMeta(uint64(i+1), "test", 10, 0, 30*time.Second)
+		meta.DelayState = state
+		body := []byte(fmt.Sprintf("body %d", i+1))
+		if err := storage.SaveDelayJob(ctx, meta, body); err != nil {
+			t.Fatalf("SaveDelayJob %d error: %v", i+1, err)
+		}
+		ReleaseDelayJobMeta(meta)
+	}
+
+	// Count all
+	count, err := storage.CountDelayJobs(ctx, nil)
+	if err != nil {
+		t.Fatalf("CountDelayJobs all error: %v", err)
+	}
+	if count != 6 {
+		t.Errorf("Count all = %d, want 6", count)
+	}
+
+	// Count Ready
+	ready := DelayStateReady
+	count, err = storage.CountDelayJobs(ctx, &DelayJobMetaFilter{DelayState: &ready})
+	if err != nil {
+		t.Fatalf("CountDelayJobs Ready error: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("Count Ready = %d, want 3", count)
+	}
+
+	// Count Delayed
+	delayed := DelayStateDelayed
+	count, err = storage.CountDelayJobs(ctx, &DelayJobMetaFilter{DelayState: &delayed})
+	if err != nil {
+		t.Fatalf("CountDelayJobs Delayed error: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("Count Delayed = %d, want 2", count)
+	}
+
+	// Count Buried
+	buried := DelayStateBuried
+	count, err = storage.CountDelayJobs(ctx, &DelayJobMetaFilter{DelayState: &buried})
+	if err != nil {
+		t.Fatalf("CountDelayJobs Buried error: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Count Buried = %d, want 1", count)
+	}
+}
