@@ -34,9 +34,6 @@ jobs:
           go install honnef.co/go/tools/cmd/staticcheck@latest
           staticcheck ./...
 
-      - name: Build project
-        run: go build -v -o myapp ./cmd
-
       - name: Run tests with coverage
         run: |
           go test -v -coverprofile=coverage.out ./...
