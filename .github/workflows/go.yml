@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [ '1.24', '1.25' ]
+        go-version: [ '1.23', '1.24' ]
       fail-fast: false  # 一个 Go 版本失败不影响其他版本执行
 
     steps:
@@ -47,7 +47,7 @@ jobs:
         with:
           file: ./coverage.out
           token: ${{ secrets.CODECOV_TOKEN }}
-        if: matrix.go-version == '1.25' 
+        if: matrix.go-version == '1.24' 
 
       - name: Archive binary
         uses: actions/upload-artifact@v4
