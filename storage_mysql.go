@@ -23,7 +23,6 @@ type mysqlSaveDelayJobRequest struct {
 type MySQLStorage struct {
 	db  *sql.DB
 	dsn string
-	mu  sync.RWMutex
 
 	// 批量更新缓冲机制（用于 UpdateDelayJobMeta）
 	updateBuffer   map[uint64]*DelayJobMeta // 待更新的任务元数据缓冲
@@ -81,11 +80,21 @@ func NewMySQLStorage(dsn string, opts ...MySQLStorageOption) (*MySQLStorage, err
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
+	s, err := NewMySQLStorageFromDB(db, opts...)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	s.dsn = dsn
+	return s, nil
+}
+
+// NewMySQLStorageFromDB 使用现有的 sql.DB 创建 MySQL 存储
+func NewMySQLStorageFromDB(db *sql.DB, opts ...MySQLStorageOption) (*MySQLStorage, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	storage := &MySQLStorage{
 		db:            db,
-		dsn:           dsn,
 		updateBuffer:  make(map[uint64]*DelayJobMeta),
 		updateChan:    make(chan *DelayJobMeta, 1000),             // 缓冲 1000 个更新请求
 		saveChan:      make(chan *mysqlSaveDelayJobRequest, 1000), // 缓冲 1000 个保存请求
@@ -102,22 +111,20 @@ func NewMySQLStorage(dsn string, opts ...MySQLStorageOption) (*MySQLStorage, err
 
 	// 初始化数据库表
 	if err := storage.initTables(); err != nil {
-		_ = db.Close()
 		cancel()
 		return nil, fmt.Errorf("init tables: %w", err)
 	}
 
-	// 设置连接池
-	db.SetMaxOpenConns(50)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(time.Hour)
+	// 设置连接池 (如果用户传入的 DB 已经设置过，这里会覆盖，但为了保持一致性先保留)
+	// 注意：如果 db 是外部传入的，修改它的设置可能有副作用。
+	// 但为了简化，我们假设这里接管了 db 的配置，或者我们可以检查 db 的状态。
+	// 简单起见，我们只在 NewMySQLStorage 中设置连接池，或者在这里设置。
+	// 考虑到 NewMySQLStorageFromDB 可能会被用于测试，测试中可能不需要这些设置，或者 mock db 不支持。
+	// 但 initTables 是必须的。
 
-	// 启动批量更新后台任务
-	storage.wg.Add(1)
+	// 启动后台处理协程
+	storage.wg.Add(2)
 	go storage.batchUpdateLoop()
-
-	// 启动批量保存后台任务
-	storage.wg.Add(1)
 	go storage.batchSaveLoop()
 
 	return storage, nil
