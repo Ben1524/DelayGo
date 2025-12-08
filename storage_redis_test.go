@@ -6,35 +6,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 )
 
 func setupRedis(t *testing.T) (*RedisStorage, func()) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     "100.108.24.7:6379",
-		Password: "Redis@123456", // 如果没有密码则留空
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	if err := client.Ping(ctx).Err(); err != nil {
-		t.Skipf("skipping redis tests: %v", err)
-		return nil, nil
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("failed to start miniredis: %v", err)
 	}
+
+	client := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
 
 	// Use a random prefix for isolation
 	prefix := fmt.Sprintf("delaygo_test_%d", time.Now().UnixNano())
 	storage := NewRedisStorage(client, WithRedisPrefix(prefix))
 
 	cleanup := func() {
-		// Clean up all keys with the prefix
-		ctx := context.Background()
-		iter := client.Scan(ctx, 0, prefix+"*", 0).Iterator()
-		for iter.Next(ctx) {
-			client.Del(ctx, iter.Val())
-		}
 		storage.Close()
+		mr.Close()
 	}
 
 	return storage, cleanup
