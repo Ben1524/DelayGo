@@ -60,6 +60,15 @@ func (h *delayJobMetaHeapByReadyAt) Pop() any {
 	return meta
 }
 
+// find 查找指定任务
+func (h *delayJobMetaHeapByReadyAt) find(id uint64) *DelayJobMeta {
+	idx, ok := h.index[id]
+	if !ok {
+		return nil
+	}
+	return h.items[idx]
+}
+
 // remove 移除指定任务
 func (h *delayJobMetaHeapByReadyAt) remove(id uint64) bool {
 	idx, ok := h.index[id]
@@ -70,16 +79,7 @@ func (h *delayJobMetaHeapByReadyAt) remove(id uint64) bool {
 	return true
 }
 
-// find 查找指定任务
-func (h *delayJobMetaHeapByReadyAt) find(id uint64) *DelayJobMeta {
-	idx, ok := h.index[id]
-	if !ok {
-		return nil
-	}
-	return h.items[idx]
-}
-
-// Peek 获取最早到期的任务（不移除）
+// peek 查看堆顶元素
 func (h *delayJobMetaHeapByReadyAt) Peek() *DelayJobMeta {
 	if len(h.items) == 0 {
 		return nil

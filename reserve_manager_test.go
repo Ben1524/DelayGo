@@ -407,11 +407,12 @@ func TestReserveMaxWaiters(t *testing.T) {
 		for range 1100 {
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				_, err := q.Reserve([]string{"test"}, 100*time.Millisecond)
 				if err == ErrTooManyWaiters {
 					errCount.Add(1)
 				}
-			})
+			}()
 		}
 
 		wg.Wait()

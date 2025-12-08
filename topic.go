@@ -91,7 +91,7 @@ func (t *topic) peekReady() *DelayJobMeta {
 	return t.ready.items[0]
 }
 
-// removeReady 从就绪队列移除任务
+// removeReady 移除指定就绪任务
 func (t *topic) removeReady(id uint64) bool {
 	return t.ready.remove(id)
 }
@@ -102,6 +102,11 @@ func (t *topic) removeReady(id uint64) bool {
 // pushDelayed 添加延迟任务
 func (t *topic) pushDelayed(meta *DelayJobMeta) {
 	heap.Push(t.delayed, meta)
+}
+
+// removeDelayed 移除指定延迟任务
+func (t *topic) removeDelayed(id uint64) bool {
+	return t.delayed.remove(id)
 }
 
 // popDelayed 获取并移除最早到期的延迟任务
@@ -118,11 +123,6 @@ func (t *topic) peekDelayed() *DelayJobMeta {
 		return nil
 	}
 	return t.delayed.items[0]
-}
-
-// removeDelayed 从延迟队列移除任务
-func (t *topic) removeDelayed(id uint64) bool {
-	return t.delayed.remove(id)
 }
 
 // === Reserved 队列操作 ===
