@@ -73,6 +73,10 @@ type Storage interface {
 	// 如果任务不存在则返回 ErrNotFound
 	DeleteDelayJob(ctx context.Context, id uint64) error
 
+	// 批量删除任务（元数据 + Body）
+	// 如果某个任务不存在则忽略
+	BatchDeleteDelayJobs(ctx context.Context, ids []uint64) error
+
 	// === 统计查询 ===
 
 	// CountDelayJobs 统计任务数量

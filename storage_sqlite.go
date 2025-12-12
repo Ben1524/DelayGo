@@ -668,7 +668,37 @@ func (s *SQLiteStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMeta
 	return count, nil
 }
 
+// 批量删除接口
+func (s *SQLiteStorage) BatchDeleteDelayJobs(ctx context.Context, ids []uint64) error {
+	if len(ids) == 0 {
+		return nil
+	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 构建占位符
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf("DELETE FROM delayJob_meta WHERE id IN (%s)", strings.Join(placeholders, ","))
+
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("batch delete delayJob_meta: %w", err)
+	}
+
+	_, err = result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get rows affected: %w", err)
+	}
+
+	return nil
+}
 
 // Close 关闭存储
 func (s *SQLiteStorage) Close() error {

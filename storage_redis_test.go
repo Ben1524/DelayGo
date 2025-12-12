@@ -354,3 +354,45 @@ func TestRedisStorageCountDelayJobs(t *testing.T) {
 		t.Errorf("Count Buried = %d, want 1", count)
 	}
 }
+
+func TestRedisStorageBatchDeleteDelayJobs(t *testing.T) {
+	storage, cleanup := setupRedis(t)
+	if storage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create multiple jobs
+	ids := []uint64{1, 2, 3, 4, 5}
+	for _, id := range ids {
+		meta := NewDelayJobMeta(id, "test", 10, 0, 30*time.Second)
+		body := []byte("test body")
+		if err := storage.SaveDelayJob(ctx, meta, body); err != nil {
+			t.Fatalf("SaveDelayJob %d error: %v", id, err)
+		}
+		ReleaseDelayJobMeta(meta)
+	}
+
+	// Batch delete some
+	deleteIDs := []uint64{1, 3, 5}
+	if err := storage.BatchDeleteDelayJobs(ctx, deleteIDs); err != nil {
+		t.Fatalf("BatchDeleteDelayJobs error: %v", err)
+	}
+
+	// Verify deletion
+	for _, id := range deleteIDs {
+		if _, err := storage.GetDelayJobMeta(ctx, id); err != ErrNotFound {
+			t.Errorf("GetDelayJobMeta %d after delete = %v, want ErrNotFound", id, err)
+		}
+	}
+
+	// Verify others exist
+	keepIDs := []uint64{2, 4}
+	for _, id := range keepIDs {
+		if _, err := storage.GetDelayJobMeta(ctx, id); err != nil {
+			t.Errorf("GetDelayJobMeta %d error: %v", id, err)
+		}
+	}
+}

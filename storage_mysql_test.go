@@ -227,3 +227,37 @@ func TestMySQLStorageCountDelayJobs(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
+
+func TestMySQLStorageBatchDeleteDelayJobs(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS delay_job_meta").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS delay_job_body").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	storage, err := NewMySQLStorageFromDB(db)
+	if err != nil {
+		t.Fatalf("NewMySQLStorageFromDB error: %v", err)
+	}
+	defer func() { _ = storage.Close() }()
+
+	ctx := context.Background()
+	ids := []uint64{1, 2, 3}
+
+	// Expect BatchDeleteDelayJobs queries
+	// DELETE FROM delay_job_meta WHERE id IN (?,?,?)
+	mock.ExpectExec("DELETE FROM delay_job_meta WHERE id IN \\(\\?,\\?,\\?\\)").
+		WithArgs(1, 2, 3).
+		WillReturnResult(sqlmock.NewResult(0, 3))
+
+	if err := storage.BatchDeleteDelayJobs(ctx, ids); err != nil {
+		t.Fatalf("BatchDeleteDelayJobs error: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}

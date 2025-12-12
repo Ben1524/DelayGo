@@ -224,6 +224,53 @@ func (s *RedisStorage) DeleteDelayJob(ctx context.Context, id uint64) error {
 	return err
 }
 
+// BatchDeleteDelayJobs 批量删除任务
+func (s *RedisStorage) BatchDeleteDelayJobs(ctx context.Context, ids []uint64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// 使用 Lua 脚本原子删除
+	script := redis.NewScript(`
+		local jobKey = KEYS[1]
+		local id = ARGV[1]
+		local prefix = ARGV[2]
+
+		if redis.call("EXISTS", jobKey) == 0 then
+			return 0 -- Ignore if not exists
+		end
+
+		local topic = redis.call("HGET", jobKey, "t")
+		local state = redis.call("HGET", jobKey, "s")
+
+		redis.call("DEL", jobKey)
+		redis.call("ZREM", prefix .. ":ids", id)
+		if topic then
+			redis.call("ZREM", prefix .. ":topic:" .. topic, id)
+		end
+		if state then
+			redis.call("ZREM", prefix .. ":state:" .. state, id)
+		end
+
+		return 1
+	`)
+
+	// Ensure script is loaded for pipeline
+	if err := script.Load(ctx, s.client).Err(); err != nil {
+		return err
+	}
+
+	pipe := s.client.Pipeline()
+	for _, id := range ids {
+		keys := []string{s.keyJob(id)}
+		args := []interface{}{id, s.prefix}
+		script.Run(ctx, pipe, keys, args...)
+	}
+
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
 // ScanDelayJobMeta 扫描任务元数据
 func (s *RedisStorage) ScanDelayJobMeta(ctx context.Context, filter *DelayJobMetaFilter) (*DelayJobMetaList, error) {
 	if filter == nil {
@@ -336,7 +383,6 @@ func (s *RedisStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMetaF
 	// 或者遍历 (性能差)
 	return 0, nil
 }
-
 
 // Close 关闭存储
 func (s *RedisStorage) Close() error {

@@ -102,6 +102,19 @@ func (s *MemoryStorage) DeleteDelayJob(ctx context.Context, id uint64) error {
 	return nil
 }
 
+// BatchDeleteDelayJobs 批量删除任务（元数据 + Body）
+func (s *MemoryStorage) BatchDeleteDelayJobs(ctx context.Context, ids []uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, id := range ids {
+		delete(s.metas, id)
+		delete(s.bodies, id)
+	}
+
+	return nil
+}
+
 // ScanDelayJobMeta 扫描任务元数据
 func (s *MemoryStorage) ScanDelayJobMeta(ctx context.Context, filter *DelayJobMetaFilter) (*DelayJobMetaList, error) {
 	s.mu.RLock()
@@ -186,7 +199,6 @@ func (s *MemoryStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMeta
 
 	return count, nil
 }
-
 
 // Close 关闭存储
 func (s *MemoryStorage) Close() error {

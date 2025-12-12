@@ -404,6 +404,44 @@ func TestSQLiteStorageGetDelayJobMeta(t *testing.T) {
 	ReleaseDelayJobMeta(meta)
 }
 
+// 测试批量删除任务
+func TestSQLiteStorageBatchDeleteDelayJobs(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "delaygo-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+		defer func() { _ = os.RemoveAll(tmpDir) }()
+	}
+	dbPath := filepath.Join(tmpDir, "test.db")
+	storage, err := NewSQLiteStorage(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStorage error: %v", err)
+	}
+	defer func() { _ = storage.Close() }()
+	ctx := context.Background()
+	// Save multiple delayJobs
+	var ids []uint64
+	for i := uint64(1); i <= 500; i++ {
+		meta := NewDelayJobMeta(i, "test", 10, 0, 30*time.Second)
+		if err := storage.SaveDelayJob(ctx, meta, []byte("body")); err != nil {
+			t.Fatalf("SaveDelayJob error: %v", err)
+		}
+		ids = append(ids, i)
+	}
+
+	err = storage.BatchDeleteDelayJobs(ctx, ids)
+	if err != nil {
+		t.Fatalf("BatchDeleteDelayJobs error: %v", err)
+	}
+
+	// Verify deletion
+	for _, id := range ids {
+		_, err := storage.GetDelayJobMeta(ctx, id)
+		if err != ErrNotFound {
+			t.Errorf("GetDelayJobMeta after batch delete = %v, want ErrNotFound", err)
+		}
+	}
+}
+
 func TestSQLiteStorageGetDelayJobBody(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "delaygo-test-*")
 	if err != nil {

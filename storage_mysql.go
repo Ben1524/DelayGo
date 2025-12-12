@@ -418,6 +418,31 @@ func (s *MySQLStorage) DeleteDelayJob(ctx context.Context, id uint64) error {
 	return nil
 }
 
+// BatchDeleteDelayJobs 批量删除任务（元数据 + Body）
+func (s *MySQLStorage) BatchDeleteDelayJobs(ctx context.Context, ids []uint64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// 构建 IN 查询
+	query := "DELETE FROM delay_job_meta WHERE id IN ("
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		if i > 0 {
+			query += ","
+		}
+		query += "?"
+		args[i] = id
+	}
+	query += ")"
+
+	_, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("batch delete delay_job_meta: %w", err)
+	}
+	return nil
+}
+
 // CountDelayJobs 统计任务数量
 func (s *MySQLStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMetaFilter) (int, error) {
 	query := "SELECT COUNT(*) FROM delay_job_meta"
@@ -447,8 +472,6 @@ func (s *MySQLStorage) CountDelayJobs(ctx context.Context, filter *DelayJobMetaF
 
 	return count, nil
 }
-
-
 
 // Close 关闭存储
 func (s *MySQLStorage) Close() error {
