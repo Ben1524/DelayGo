@@ -36,9 +36,16 @@ func main() {
 		}
 
 		// 发布任务
-		log.Println("发布任务: 'Persisted Job' (延迟 5秒)")
-		_, err = q.Put("persist", []byte("Persisted Job"), 1, 5*time.Second, 60*time.Second)
-		if err != nil {
+		log.Println("发布任务: 'Persisted Job' (随机延迟秒)")
+
+		for i := 1; i <= 5; i++ {
+			_, err = q.Put("persist", []byte("Persisted Job "+time.Now().Format("15:04:05")), uint32(i), time.Duration(i)*time.Second, time.Duration(i)*time.Second)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		if err := q.Start(); err != nil {
 			log.Fatal(err)
 		}
 
@@ -80,13 +87,15 @@ func main() {
 		// 之前延迟 5s，这里直接 Reserve
 		log.Println("等待任务恢复...")
 
-		// 注意：Reserve 会等待直到任务就绪
-		job, err := q.Reserve([]string{"persist"}, 10*time.Second)
-		if err != nil {
-			log.Fatalf("恢复后获取任务失败: %v", err)
+		for i := 0; i < 5; i++ {
+			// 注意：Reserve 会等待直到任务就绪
+			job, err := q.Reserve([]string{"persist"}, 10*time.Second)
+			if err != nil {
+				log.Fatalf("恢复后获取任务失败: %v", err)
+			}
+			log.Printf("成功恢复并消费任务: ID=%d, Body=%s\n", job.Meta.ID, string(job.Body()))
+			job.Delete()
 		}
 
-		log.Printf("成功恢复并消费任务: ID=%d, Body=%s\n", job.Meta.ID, string(job.Body()))
-		job.Delete()
 	}
 }
