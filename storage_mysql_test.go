@@ -261,3 +261,45 @@ func TestMySQLStorageBatchDeleteDelayJobs(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
+
+func TestMySQLStorageSaveDelayJobs(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer db.Close()
+
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS delay_job_meta").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS delay_job_body").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	storage, err := NewMySQLStorageFromDB(db)
+	if err != nil {
+		t.Fatalf("NewMySQLStorageFromDB error: %v", err)
+	}
+	defer func() { _ = storage.Close() }()
+
+	ctx := context.Background()
+
+	var metas []*DelayJobMeta
+	var bodies [][]byte
+	for i := 1; i <= 3; i++ {
+		meta := NewDelayJobMeta(uint64(i), "test", 10, 0, 30*time.Second)
+		metas = append(metas, meta)
+		bodies = append(bodies, []byte("body"))
+	}
+
+	// Expect Batch Insert
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT IGNORE INTO delay_job_meta").WillReturnResult(sqlmock.NewResult(3, 3))
+	mock.ExpectExec("INSERT IGNORE INTO delay_job_body").WillReturnResult(sqlmock.NewResult(3, 3))
+	mock.ExpectCommit()
+
+	err = storage.SaveDelayJobs(ctx, metas, bodies)
+	if err != nil {
+		t.Fatalf("SaveDelayJobs error: %v", err)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}

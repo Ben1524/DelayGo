@@ -358,6 +358,8 @@ func NewDelayJobMeta(id uint64, topic string, priority uint32, delay, ttr time.D
 	return meta
 }
 
+
+
 // ReleaseDelayJobMeta 释放任务元数据回对象池
 // 注意：释放后不应再使用该对象
 func ReleaseDelayJobMeta(meta *DelayJobMeta) {

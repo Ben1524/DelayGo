@@ -405,6 +405,32 @@ func (q *DelayQueue) Put(topic string, body []byte, priority uint32, delay, ttr 
 	return id, nil
 }
 
+
+
+
+// 异步添加任务到队列
+func (q *DelayQueue) AsyncPut(topic string, body []byte, priority uint32, delay, ttr time.Duration) (<-chan uint64, <-chan error) {
+	resultCh := make(chan uint64, 1)
+	errorCh := make(chan error, 1)
+	
+	go func() {
+		id, err := q.Put(topic, body, priority, delay, ttr)
+		if err != nil {
+			errorCh <- err
+			close(resultCh)
+			close(errorCh)
+			return
+		}
+		resultCh <- id
+		close(resultCh)
+		close(errorCh)
+	}()
+	return resultCh, errorCh
+}
+
+
+
+
 // Delete 删除任务（必须是已保留状态）
 func (q *DelayQueue) Delete(id uint64) error {
 	q.logger.Debug("deleting delayJob", slog.Uint64("id", id))

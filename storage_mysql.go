@@ -216,6 +216,68 @@ func (s *MySQLStorage) SaveDelayJob(ctx context.Context, meta *DelayJobMeta, bod
 	}
 }
 
+// SaveDelayJobs 批量保存任务（元数据 + Body）
+func (s *MySQLStorage) SaveDelayJobs(ctx context.Context, metas []*DelayJobMeta, bodies [][]byte) error {
+	// 检查是否已关闭
+	s.closeMu.Lock()
+	if s.closed {
+		s.closeMu.Unlock()
+		return ErrStorageClosed
+	}
+	s.closeMu.Unlock()
+
+	if len(metas) != len(bodies) {
+		return fmt.Errorf("metas and bodies length mismatch")
+	}
+
+	reqs := make([]*mysqlSaveDelayJobRequest, len(metas))
+	for i, meta := range metas {
+		// 克隆元数据和 body
+		metaCopy := meta.Clone()
+		var bodyCopy []byte
+		if len(bodies[i]) > 0 {
+			bodyCopy = make([]byte, len(bodies[i]))
+			copy(bodyCopy, bodies[i])
+		}
+
+		reqs[i] = &mysqlSaveDelayJobRequest{
+			meta: metaCopy,
+			body: bodyCopy,
+			done: make(chan error, 1),
+		}
+	}
+
+	// 发送到保存通道
+	// 注意：这里我们逐个发送，但由于 batchSaveLoop 会在后台收集，
+	// 只要发送速度够快，它们很可能会被打包在同一个 batch 中。
+	for _, req := range reqs {
+		select {
+		case s.saveChan <- req:
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	// 等待所有请求完成
+	var firstErr error
+	for _, req := range reqs {
+		select {
+		case err := <-req.done:
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+		case <-ctx.Done():
+			if firstErr == nil {
+				firstErr = ctx.Err()
+			}
+		}
+	}
+
+	return firstErr
+}
+
 // UpdateDelayJobMeta 更新任务元数据
 // 异步批量更新，高吞吐量
 func (s *MySQLStorage) UpdateDelayJobMeta(ctx context.Context, meta *DelayJobMeta) error {

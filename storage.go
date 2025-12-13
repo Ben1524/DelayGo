@@ -42,6 +42,10 @@ type Storage interface {
 	// 如果任务已存在则返回 ErrDelayJobExists
 	SaveDelayJob(ctx context.Context, meta *DelayJobMeta, body []byte) error
 
+	// SaveDelayJobs 批量保存完整任务
+	// 尽可能保证批量操作的效率
+	SaveDelayJobs(ctx context.Context, metas []*DelayJobMeta, bodies [][]byte) error
+
 	// === 元数据操作 ===
 
 	// UpdateDelayJobMeta 更新任务元数据

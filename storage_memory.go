@@ -2,6 +2,7 @@ package delaygo
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -38,6 +39,39 @@ func (s *MemoryStorage) SaveDelayJob(ctx context.Context, meta *DelayJobMeta, bo
 		bodyCopy := make([]byte, len(body))
 		copy(bodyCopy, body)
 		s.bodies[meta.ID] = bodyCopy
+	}
+
+	return nil
+}
+
+// SaveDelayJobs 批量保存任务（元数据 + Body）
+func (s *MemoryStorage) SaveDelayJobs(ctx context.Context, metas []*DelayJobMeta, bodies [][]byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(metas) != len(bodies) {
+		return errors.New("metas and bodies length mismatch")
+	}
+
+	// 检查是否有任何任务已存在
+	for _, meta := range metas {
+		if _, exists := s.metas[meta.ID]; exists {
+			return ErrDelayJobExists
+		}
+	}
+
+	// 保存所有任务
+	for i, meta := range metas {
+		// 保存元数据（克隆）
+		s.metas[meta.ID] = meta.Clone()
+
+		// 保存 Body（复制）
+		body := bodies[i]
+		if len(body) > 0 {
+			bodyCopy := make([]byte, len(body))
+			copy(bodyCopy, body)
+			s.bodies[meta.ID] = bodyCopy
+		}
 	}
 
 	return nil

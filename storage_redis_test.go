@@ -396,3 +396,52 @@ func TestRedisStorageBatchDeleteDelayJobs(t *testing.T) {
 		}
 	}
 }
+
+func TestRedisStorageSaveDelayJobs(t *testing.T) {
+	storage, cleanup := setupRedis(t)
+	if storage == nil {
+		return
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+
+	var metas []*DelayJobMeta
+	var bodies [][]byte
+	for i := 1; i <= 5; i++ {
+		meta := NewDelayJobMeta(uint64(i), "test", 10, 0, 30*time.Second)
+		metas = append(metas, meta)
+		bodies = append(bodies, []byte(fmt.Sprintf("body %d", i)))
+	}
+
+	// Save delayJobs
+	err := storage.SaveDelayJobs(ctx, metas, bodies)
+	if err != nil {
+		t.Fatalf("SaveDelayJobs error: %v", err)
+	}
+
+	// Verify
+	for i, meta := range metas {
+		gotMeta, err := storage.GetDelayJobMeta(ctx, meta.ID)
+		if err != nil {
+			t.Errorf("GetDelayJobMeta %d error: %v", meta.ID, err)
+		}
+		if gotMeta.ID != meta.ID {
+			t.Errorf("ID = %d, want %d", gotMeta.ID, meta.ID)
+		}
+
+		gotBody, err := storage.GetDelayJobBody(ctx, meta.ID)
+		if err != nil {
+			t.Errorf("GetDelayJobBody %d error: %v", meta.ID, err)
+		}
+		if string(gotBody) != string(bodies[i]) {
+			t.Errorf("Body = %s, want %s", gotBody, bodies[i])
+		}
+	}
+
+	// Test duplicate
+	err = storage.SaveDelayJobs(ctx, metas, bodies)
+	if err != ErrDelayJobExists {
+		t.Errorf("SaveDelayJobs duplicate = %v, want ErrDelayJobExists", err)
+	}
+}

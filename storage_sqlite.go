@@ -239,6 +239,66 @@ func (s *SQLiteStorage) SaveDelayJob(ctx context.Context, meta *DelayJobMeta, bo
 	}
 }
 
+// SaveDelayJobs 批量保存任务（元数据 + Body）
+func (s *SQLiteStorage) SaveDelayJobs(ctx context.Context, metas []*DelayJobMeta, bodies [][]byte) error {
+	// 检查是否已关闭
+	s.closeMu.Lock()
+	if s.closed {
+		s.closeMu.Unlock()
+		return ErrStorageClosed
+	}
+	s.closeMu.Unlock()
+
+	if len(metas) != len(bodies) {
+		return fmt.Errorf("metas and bodies length mismatch")
+	}
+
+	reqs := make([]*saveDelayJobRequest, len(metas))
+	for i, meta := range metas {
+		// 克隆元数据和 body
+		metaCopy := meta.Clone()
+		var bodyCopy []byte
+		if len(bodies[i]) > 0 {
+			bodyCopy = make([]byte, len(bodies[i]))
+			copy(bodyCopy, bodies[i])
+		}
+
+		reqs[i] = &saveDelayJobRequest{
+			meta: metaCopy,
+			body: bodyCopy,
+			done: make(chan error, 1),
+		}
+	}
+
+	// 发送到 saveChan
+	for _, req := range reqs {
+		select {
+		case s.saveChan <- req:
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	// 等待所有请求完成
+	var firstErr error
+	for _, req := range reqs {
+		select {
+		case err := <-req.done:
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+		case <-ctx.Done():
+			if firstErr == nil {
+				firstErr = ctx.Err()
+			}
+		}
+	}
+
+	return firstErr
+}
+
 // batchSaveDelayJobsInternal 批量保存任务（在单个事务中）
 // 内部方法，由 SaveDelayJob 调用
 func (s *SQLiteStorage) batchSaveDelayJobsInternal(requests []*saveDelayJobRequest) error {

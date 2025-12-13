@@ -92,6 +92,58 @@ func (s *RedisStorage) SaveDelayJob(ctx context.Context, meta *DelayJobMeta, bod
 	return err
 }
 
+// SaveDelayJobs 批量保存完整任务
+func (s *RedisStorage) SaveDelayJobs(ctx context.Context, metas []*DelayJobMeta, bodies [][]byte) error {
+	if len(metas) != len(bodies) {
+		return fmt.Errorf("metas and bodies length mismatch")
+	}
+
+	// 检查是否存在 (批量)
+	pipe := s.client.Pipeline()
+	for _, meta := range metas {
+		pipe.Exists(ctx, s.keyJob(meta.ID))
+	}
+	cmds, err := pipe.Exec(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, cmd := range cmds {
+		if cmd.(*redis.IntCmd).Val() > 0 {
+			return ErrDelayJobExists
+		}
+	}
+
+	// 批量保存
+	pipe = s.client.TxPipeline()
+	for i, meta := range metas {
+		jobKey := s.keyJob(meta.ID)
+		body := bodies[i]
+
+		metaBytes, err := json.Marshal(meta)
+		if err != nil {
+			return err
+		}
+
+		// 保存 Job Hash (m=meta, b=body, t=topic, s=state)
+		pipe.HSet(ctx, jobKey,
+			"m", metaBytes,
+			"b", body,
+			"t", meta.Topic,
+			"s", int(meta.DelayState),
+		)
+
+		// 更新索引
+		score := float64(meta.ID)
+		pipe.ZAdd(ctx, s.keyIDs(), redis.Z{Score: score, Member: meta.ID})
+		pipe.ZAdd(ctx, s.keyTopic(meta.Topic), redis.Z{Score: score, Member: meta.ID})
+		pipe.ZAdd(ctx, s.keyState(meta.DelayState), redis.Z{Score: score, Member: meta.ID})
+	}
+
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
 // UpdateDelayJobMeta 更新任务元数据
 func (s *RedisStorage) UpdateDelayJobMeta(ctx context.Context, meta *DelayJobMeta) error {
 	metaBytes, err := json.Marshal(meta)
